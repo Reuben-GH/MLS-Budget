@@ -1,0 +1,5 @@
+project_id = "my-life-sorted-budget"
+
+# No local Docker stack is used for this project (see README.md) —
+# this file exists only so `supabase link` / `supabase db push` can
+# target the hosted budget-dev / budget-test projects directly.
