@@ -11,7 +11,6 @@ export async function addCustomSubcategory(
 ): Promise<{ error?: string } | undefined> {
   const parsedCategory = topLevelCategorySchema.safeParse(topLevelCategory);
   if (!parsedCategory.success) return { error: "Invalid category." };
-  if (parsedCategory.data === "Income") return { error: "Income categories can't be customised." };
 
   const trimmed = name.trim();
   if (!trimmed) return { error: "Enter a name." };

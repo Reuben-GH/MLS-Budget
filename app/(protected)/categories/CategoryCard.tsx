@@ -60,7 +60,7 @@ export function CategoryCard({ category, builtinSubs, customSubs, overrides }: C
         )}
       </div>
 
-      {!isIncome && <AddSubcategoryForm category={category} />}
+      <AddSubcategoryForm category={category} />
     </div>
   );
 }
