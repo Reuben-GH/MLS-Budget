@@ -32,6 +32,9 @@ export function AppHeader() {
           <Link href="/categories" className={pathname === "/categories" ? "active" : ""}>
             Categories
           </Link>
+          <Link href="/import" className={pathname === "/import" ? "active" : ""}>
+            Import
+          </Link>
         </nav>
         <button className="sign-out-btn" onClick={handleSignOut} type="button">
           Sign out

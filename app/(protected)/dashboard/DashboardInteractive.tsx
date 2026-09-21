@@ -17,6 +17,7 @@ interface DashboardInteractiveProps {
   overrides: ClassificationOverride[];
   categoryBreakdown: CategoryBreakdownGroup[];
   fdBreakdown: { fixed: FixedDiscretionaryGroup; discretionary: FixedDiscretionaryGroup };
+  customSubcategories: Record<string, string[]>;
 }
 
 // The one client component on the dashboard — owns the shared
@@ -27,6 +28,7 @@ export function DashboardInteractive({
   overrides,
   categoryBreakdown,
   fdBreakdown,
+  customSubcategories,
 }: DashboardInteractiveProps) {
   const [mode, setMode] = useState<"category" | "fd">("category");
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>(null);
@@ -56,6 +58,7 @@ export function DashboardInteractive({
         totalCount={transactions.length}
         activeFilter={activeFilter}
         onClearFilter={() => setActiveFilter(null)}
+        customSubcategories={customSubcategories}
       />
     </div>
   );

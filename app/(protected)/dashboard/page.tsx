@@ -85,11 +85,23 @@ export default async function DashboardPage() {
     classification: r.classification as FDClassification,
   }));
 
+  const { data: customSubRows } = await supabase
+    .from("custom_subcategories")
+    .select("top_level_category, name")
+    .eq("user_id", user.id);
+
+  const customSubcategories: Record<string, string[]> = {};
+  for (const row of customSubRows ?? []) {
+    if (!customSubcategories[row.top_level_category]) customSubcategories[row.top_level_category] = [];
+    customSubcategories[row.top_level_category].push(row.name);
+  }
+
   const totals = computeMonthlyTotals(transactions);
   const categoryBreakdown = computeCategoryBreakdown(transactions);
   const fdBreakdown = computeFixedDiscretionaryBreakdown(transactions, overrides);
   const incomeCount = transactions.filter((t) => t.category === "Income").length;
-  const expenseCount = transactions.length - incomeCount;
+  const transferCount = transactions.filter((t) => t.category === "Transfer").length;
+  const expenseCount = transactions.length - incomeCount - transferCount;
 
   return (
     <>
@@ -107,6 +119,7 @@ export default async function DashboardPage() {
         overrides={overrides}
         categoryBreakdown={categoryBreakdown}
         fdBreakdown={fdBreakdown}
+        customSubcategories={customSubcategories}
       />
 
       <DisclaimerFooter />

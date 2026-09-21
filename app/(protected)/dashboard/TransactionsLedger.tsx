@@ -1,10 +1,12 @@
 import type { TransactionForAggregation, ActiveFilter } from "../../../lib/budget/aggregate";
+import { TransactionCategoryEditor } from "./TransactionCategoryEditor";
 
 interface TransactionsLedgerProps {
   transactions: TransactionForAggregation[];
   totalCount: number;
   activeFilter: ActiveFilter;
   onClearFilter: () => void;
+  customSubcategories: Record<string, string[]>;
 }
 
 const fmt = (n: number) =>
@@ -16,7 +18,13 @@ function titleCase(desc: string): string {
   return desc.length ? desc.charAt(0) + desc.slice(1).toLowerCase() : desc;
 }
 
-export function TransactionsLedger({ transactions, totalCount, activeFilter, onClearFilter }: TransactionsLedgerProps) {
+export function TransactionsLedger({
+  transactions,
+  totalCount,
+  activeFilter,
+  onClearFilter,
+  customSubcategories,
+}: TransactionsLedgerProps) {
   const filterLabel = !activeFilter
     ? null
     : activeFilter.kind === "category"
@@ -68,10 +76,12 @@ export function TransactionsLedger({ transactions, totalCount, activeFilter, onC
                   <td className="date">{fmtDate(t.txn_date)}</td>
                   <td>{titleCase(t.description)}</td>
                   <td>
-                    <span className="chip">
-                      {t.category}
-                      {t.subcategory ? ` · ${t.subcategory}` : ""}
-                    </span>
+                    <TransactionCategoryEditor
+                      transactionId={t.id}
+                      category={t.category}
+                      subcategory={t.subcategory}
+                      customSubcategories={customSubcategories}
+                    />
                   </td>
                   <td className="amt">{fmt(t.amount)}</td>
                 </tr>

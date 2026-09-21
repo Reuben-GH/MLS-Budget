@@ -11,6 +11,7 @@ export async function addCustomSubcategory(
 ): Promise<{ error?: string } | undefined> {
   const parsedCategory = topLevelCategorySchema.safeParse(topLevelCategory);
   if (!parsedCategory.success) return { error: "Invalid category." };
+  if (parsedCategory.data === "Transfer") return { error: "Transfer can't have subcategories." };
 
   const trimmed = name.trim();
   if (!trimmed) return { error: "Enter a name." };
@@ -44,6 +45,7 @@ export async function setClassification(
   const parsedCategory = topLevelCategorySchema.safeParse(topLevelCategory);
   if (!parsedCategory.success) return { error: "Invalid category." };
   if (parsedCategory.data === "Income") return { error: "Income isn't classified as Fixed/Discretionary." };
+  if (parsedCategory.data === "Transfer") return { error: "Transfer isn't classified as Fixed/Discretionary." };
 
   const parsedClassification = fdClassificationSchema.safeParse(classification);
   if (!parsedClassification.success) return { error: "Invalid classification." };
@@ -84,4 +86,41 @@ export async function setClassification(
   if (error) return { error: "Couldn't save that — try again." };
 
   revalidatePath("/categories");
+}
+
+// Renames a custom subcategory. This has to update three tables together
+// (the subcategory itself, plus every transaction and classification
+// override currently using the old name — both store the name directly,
+// not a reference), so it goes through a single Postgres function
+// (rename_custom_subcategory, see the matching migration) rather than
+// sequential calls: a partial failure here would silently orphan real
+// transaction data, which a same-user retry can't detect or fix on its
+// own — unlike a reassignment mistake, which is trivially re-editable.
+export async function renameCustomSubcategory(
+  id: string,
+  newName: string
+): Promise<{ error?: string } | undefined> {
+  const trimmed = newName.trim();
+  if (!trimmed) return { error: "Enter a name." };
+  if (trimmed.length > 30) return { error: "Keep it under 30 characters." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const { error } = await supabase.rpc("rename_custom_subcategory", {
+    p_subcategory_id: id,
+    p_new_name: trimmed,
+  });
+
+  if (error) {
+    if (error.message.includes("duplicate_name")) return { error: "That subcategory already exists." };
+    if (error.message.includes("not_found")) return { error: "Couldn't find that subcategory." };
+    return { error: "Couldn't rename that — try again." };
+  }
+
+  revalidatePath("/categories");
+  revalidatePath("/dashboard");
 }

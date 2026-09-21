@@ -12,7 +12,7 @@ export default async function CategoriesPage() {
 
   const { data: customRows } = await supabase
     .from("custom_subcategories")
-    .select("top_level_category, name")
+    .select("id, top_level_category, name")
     .eq("user_id", user.id);
 
   const { data: classificationRows } = await supabase
@@ -26,11 +26,11 @@ export default async function CategoriesPage() {
     classification: r.classification as FDClassification,
   }));
 
-  const customByCategory = new Map<TopLevelCategory, string[]>();
+  const customByCategory = new Map<TopLevelCategory, { id: string; name: string }[]>();
   for (const row of customRows ?? []) {
     const cat = row.top_level_category as TopLevelCategory;
     if (!customByCategory.has(cat)) customByCategory.set(cat, []);
-    customByCategory.get(cat)!.push(row.name);
+    customByCategory.get(cat)!.push({ id: row.id, name: row.name });
   }
 
   return (
@@ -48,7 +48,10 @@ export default async function CategoriesPage() {
         </div>
       </div>
       <div className="taxonomy-grid">
-        {TOP_LEVEL_CATEGORIES.map((category) => (
+        {/* Transfer is a real category (transactions.category), but it has no
+            Fixed/Discretionary concept and no custom subcategories — it's
+            deliberately not manageable from this page. */}
+        {TOP_LEVEL_CATEGORIES.filter((category) => category !== "Transfer").map((category) => (
           <CategoryCard
             key={category}
             category={category}

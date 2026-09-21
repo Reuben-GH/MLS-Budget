@@ -2,20 +2,34 @@ import { classify, type ClassificationOverride } from "../../../lib/categories/c
 import type { TopLevelCategory } from "../../../lib/categories/taxonomy";
 import { ClassificationToggle } from "./ClassificationToggle";
 import { AddSubcategoryForm } from "./AddSubcategoryForm";
+import { RenameSubcategoryForm } from "./RenameSubcategoryForm";
+
+interface CustomSub {
+  id: string;
+  name: string;
+}
 
 interface CategoryCardProps {
   category: TopLevelCategory;
   builtinSubs: string[];
-  customSubs: string[];
+  customSubs: CustomSub[];
   overrides: ClassificationOverride[];
 }
 
 export function CategoryCard({ category, builtinSubs, customSubs, overrides }: CategoryCardProps) {
   const isIncome = category === "Income";
   const allSubs = [
-    ...builtinSubs.map((name) => ({ name, isCustom: false })),
-    ...customSubs.map((name) => ({ name, isCustom: true })),
+    ...builtinSubs.map((name) => ({ id: null, name, isCustom: false })),
+    ...customSubs.map((s) => ({ id: s.id, name: s.name, isCustom: true })),
   ];
+
+  const nameTag = (s: (typeof allSubs)[number]) =>
+    s.isCustom ? (
+      <>
+        <span className="custom-tag">added</span>
+        <RenameSubcategoryForm id={s.id!} currentName={s.name} />
+      </>
+    ) : null;
 
   return (
     <div className="taxonomy-card">
@@ -33,7 +47,7 @@ export function CategoryCard({ category, builtinSubs, customSubs, overrides }: C
               <div className="sub-list-row" key={s.name}>
                 <span className="sub-list-name">
                   {s.name}
-                  {s.isCustom && <span className="custom-tag">added</span>}
+                  {nameTag(s)}
                 </span>
               </div>
             ))
@@ -48,7 +62,7 @@ export function CategoryCard({ category, builtinSubs, customSubs, overrides }: C
             <div className={"sub-list-row" + (s.isCustom ? " custom-sub" : "")} key={s.name}>
               <span className="sub-list-name">
                 {s.name}
-                {s.isCustom && <span className="custom-tag">added</span>}
+                {nameTag(s)}
               </span>
               <ClassificationToggle
                 category={category}

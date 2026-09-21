@@ -16,6 +16,12 @@ export const TAXONOMY = {
   Recreation: [],
   Financial: ["Fees", "Loan repayments other than mortgage"],
   Other: [],
+  // Money moving between a household's own accounts — a savings/holiday
+  // transfer, paying off a credit card — is neither income nor spending.
+  // No subcategories: it's excluded from Fixed/Discretionary and every
+  // other classification concept (see classification.ts's Transfer guard
+  // and aggregate.ts's isTransferCategory() exclusions).
+  Transfer: [],
 } as const;
 
 export type TopLevelCategory = keyof typeof TAXONOMY;
@@ -43,4 +49,8 @@ export function isValidSubcategory(category: TopLevelCategory, subcategory: stri
 // touching total_income.
 export function isIncomeCategory(category: string): boolean {
   return category === "Income";
+}
+
+export function isTransferCategory(category: string): boolean {
+  return category === "Transfer";
 }

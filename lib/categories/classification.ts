@@ -82,6 +82,10 @@ export function classify(
   subcategory: string | null,
   overrides: ClassificationOverride[]
 ): FDClassification {
+  if (category === "Transfer") {
+    throw new Error("classify() must never be called with Transfer — same invariant as Income");
+  }
+
   const override = overrides.find(
     (o) => o.category === category && o.subcategory === subcategory
   );

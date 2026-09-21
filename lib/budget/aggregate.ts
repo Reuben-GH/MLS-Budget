@@ -1,4 +1,4 @@
-import { isIncomeCategory, type TopLevelCategory } from "../categories/taxonomy";
+import { isIncomeCategory, isTransferCategory, type TopLevelCategory } from "../categories/taxonomy";
 import { classify, type ClassificationOverride } from "../categories/classification";
 
 // Pure, DB-free aggregation. Takes transactions/overrides in, returns
@@ -26,6 +26,7 @@ export function computeMonthlyTotals(transactions: TransactionForAggregation[]):
   let totalIncome = 0;
   let totalExpenses = 0;
   for (const t of transactions) {
+    if (isTransferCategory(t.category)) continue;
     if (isIncomeCategory(t.category)) {
       totalIncome += t.amount;
     } else {
@@ -61,7 +62,7 @@ function groupExpenses(
 ): Map<TopLevelCategory, Map<string | null, number>> {
   const groups = new Map<TopLevelCategory, Map<string | null, number>>();
   for (const t of transactions) {
-    if (isIncomeCategory(t.category)) continue;
+    if (isIncomeCategory(t.category) || isTransferCategory(t.category)) continue;
     if (!groups.has(t.category)) groups.set(t.category, new Map());
     const subMap = groups.get(t.category)!;
     subMap.set(t.subcategory, (subMap.get(t.subcategory) ?? 0) - t.amount);
@@ -130,6 +131,9 @@ export function filterTransactions(
     );
   }
   return transactions.filter(
-    (t) => !isIncomeCategory(t.category) && classify(t.category, t.subcategory, overrides) === filter.group
+    (t) =>
+      !isIncomeCategory(t.category) &&
+      !isTransferCategory(t.category) &&
+      classify(t.category, t.subcategory, overrides) === filter.group
   );
 }
