@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Papa from "papaparse";
+import type { WorkBook } from "xlsx";
 import {
   guessColumnMapping,
   mapRows,
@@ -9,6 +10,7 @@ import {
   type DateFormat,
   type ImportRow,
 } from "../../../lib/statements/csv-mapping";
+import { parseWorkbook, sheetToRows } from "../../../lib/statements/xlsx-mapping";
 import { importTransactions } from "./actions";
 
 type Step = "pick" | "map" | "done";
@@ -19,6 +21,8 @@ const DATE_FORMAT_LABELS: Record<DateFormat, string> = {
   YMD: "YYYY-MM-DD",
 };
 
+const EXCEL_EXTENSIONS = ["xlsx", "xls"];
+
 export function ImportWizard() {
   const [step, setStep] = useState<Step>("pick");
   const [filename, setFilename] = useState("");
@@ -28,12 +32,35 @@ export function ImportWizard() {
   const [mapError, setMapError] = useState<string | null>(null);
   const [result, setResult] = useState<{ imported: number; skippedDuplicates: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [workbook, setWorkbook] = useState<WorkBook | null>(null);
+  const [sheetName, setSheetName] = useState("");
   const [isPending, startTransition] = useTransition();
+
+  function loadSheet(wb: WorkBook, sheet: string) {
+    const { headers: h, rows } = sheetToRows(wb.Sheets[sheet]);
+    setSheetName(sheet);
+    setHeaders(h);
+    setRawRows(rows);
+    setMapping(guessColumnMapping(h));
+    setStep("map");
+  }
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setFilename(file.name);
+    const extension = file.name.toLowerCase().split(".").pop() ?? "";
+
+    if (EXCEL_EXTENSIONS.includes(extension)) {
+      file.arrayBuffer().then((buffer) => {
+        const wb = parseWorkbook(buffer);
+        setWorkbook(wb);
+        loadSheet(wb, wb.SheetNames[0]);
+      });
+      return;
+    }
+
+    setWorkbook(null);
     Papa.parse<Record<string, string>>(file, {
       header: true,
       skipEmptyLines: true,
@@ -92,10 +119,10 @@ export function ImportWizard() {
       <div className="card">
         <div className="card-title">1. Choose a file</div>
         <p className="stat-caption" style={{ marginBottom: 12 }}>
-          Export a transaction list from your client&apos;s online banking as a CSV file, then choose it
-          here.
+          Export a transaction list from your client&apos;s online banking as a CSV or Excel (.xlsx)
+          file, then choose it here.
         </p>
-        <input type="file" accept=".csv" onChange={handleFile} />
+        <input type="file" accept=".csv,.xlsx,.xls" onChange={handleFile} />
       </div>
     );
   }
@@ -109,6 +136,19 @@ export function ImportWizard() {
           {filename} — {rawRows.length} rows found. Confirm which column is which; this varies by
           bank, so nothing here is guessed silently.
         </p>
+
+        {workbook && workbook.SheetNames.length > 1 && (
+          <div className="form-group" style={{ marginBottom: 12, maxWidth: 260 }}>
+            <label>Sheet</label>
+            <select value={sheetName} onChange={(e) => loadSheet(workbook, e.target.value)}>
+              {workbook.SheetNames.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="form-grid">
           <div className="form-group">
