@@ -47,7 +47,7 @@ export async function loadFixture(
   return { statementId: statement.id };
 }
 
-// Removes everything for a user across all five tables — used to
+// Removes everything for a user across all six tables — used to
 // reset state between test runs so re-running the suite doesn't
 // double-count fixture rows.
 export async function wipeUserData(userId: string): Promise<void> {
@@ -57,4 +57,5 @@ export async function wipeUserData(userId: string): Promise<void> {
   await admin.from("monthly_summaries").delete().eq("user_id", userId);
   await admin.from("custom_subcategories").delete().eq("user_id", userId);
   await admin.from("category_classifications").delete().eq("user_id", userId);
+  await admin.from("merchant_memory").delete().eq("user_id", userId);
 }

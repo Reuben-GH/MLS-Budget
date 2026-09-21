@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "seed:demo": "tsx scripts/seed-demo-user.ts"
+    "seed:demo": "tsx scripts/seed-demo-user.ts",
+    "clear:demo": "tsx scripts/clear-demo-user.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

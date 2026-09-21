@@ -124,3 +124,21 @@ export async function renameCustomSubcategory(
   revalidatePath("/categories");
   revalidatePath("/dashboard");
 }
+
+// Deletes a remembered merchant rule. This only stops the rule from
+// applying to anything new (future imports, future corrections) — it
+// deliberately does not touch any transaction already categorised
+// under it, the same way removing a keyword from the built-in engine
+// wouldn't retroactively un-categorise anything either.
+export async function forgetMerchant(id: string): Promise<{ error?: string } | undefined> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in." };
+
+  const { error } = await supabase.from("merchant_memory").delete().eq("id", id).eq("user_id", user.id);
+  if (error) return { error: "Couldn't remove that — try again." };
+
+  revalidatePath("/categories");
+}

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createClient } from "../../../lib/supabase/server";
 import { categoriseTransaction } from "../../../lib/categorisation/engine";
 import { filterDuplicates, type DedupKey } from "../../../lib/statements/dedup";
+import { deriveMerchantKey } from "../../../lib/categories/merchant-key";
 
 const importRowSchema = z.object({
   txn_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date"),
@@ -70,8 +71,21 @@ export async function importTransactions(
     .single();
   if (statementError || !statement) return { error: "Couldn't start the import — try again." };
 
+  // Merchants the user has already corrected before win over the
+  // generic keyword rules — a direct prior correction is more
+  // trustworthy than a best-effort guess. Fetched once per import,
+  // not once per row.
+  const { data: memoryRows } = await supabase
+    .from("merchant_memory")
+    .select("merchant_key, category, subcategory")
+    .eq("user_id", user.id);
+  const memory = new Map((memoryRows ?? []).map((m) => [m.merchant_key, m]));
+
   const transactionRows = newRows.map((row) => {
-    const { category, subcategory, confidence } = categoriseTransaction(row.description, row.amount);
+    const remembered = memory.get(deriveMerchantKey(row.description));
+    const { category, subcategory, confidence } = remembered
+      ? { category: remembered.category, subcategory: remembered.subcategory, confidence: 1.0 }
+      : categoriseTransaction(row.description, row.amount);
     return {
       statement_id: statement.id,
       user_id: user.id,

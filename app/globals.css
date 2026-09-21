@@ -345,5 +345,10 @@ main { max-width: 1100px; margin: 0 auto; padding: 24px 20px 60px; display: flex
   font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 6px;
   background: var(--surface); color: var(--muted); border: 1px solid var(--border); cursor: pointer; font-family: inherit;
 }
+.apply-to-all-label {
+  display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--text-light);
+  width: 100%; order: 10; /* full-width row of its own, below the dropdowns */
+}
+.apply-to-all-label input { margin: 0; }
 
 :focus-visible { outline: 2px solid var(--g600); outline-offset: 2px; }

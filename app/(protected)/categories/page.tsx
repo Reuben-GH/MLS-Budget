@@ -2,6 +2,7 @@ import { createClient } from "../../../lib/supabase/server";
 import { TAXONOMY, TOP_LEVEL_CATEGORIES, type TopLevelCategory } from "../../../lib/categories/taxonomy";
 import { fromSentinel, type ClassificationOverride, type FDClassification } from "../../../lib/categories/classification";
 import { CategoryCard } from "./CategoryCard";
+import { RememberedMerchantsCard } from "./RememberedMerchantsCard";
 
 export default async function CategoriesPage() {
   const supabase = await createClient();
@@ -19,6 +20,12 @@ export default async function CategoriesPage() {
     .from("category_classifications")
     .select("top_level_category, subcategory, classification")
     .eq("user_id", user.id);
+
+  const { data: merchantMemoryRows } = await supabase
+    .from("merchant_memory")
+    .select("id, merchant_key, category, subcategory")
+    .eq("user_id", user.id)
+    .order("merchant_key");
 
   const overrides: ClassificationOverride[] = (classificationRows ?? []).map((r) => ({
     category: r.top_level_category as TopLevelCategory,
@@ -48,6 +55,7 @@ export default async function CategoriesPage() {
         </div>
       </div>
       <div className="taxonomy-grid">
+        <RememberedMerchantsCard rows={merchantMemoryRows ?? []} />
         {/* Transfer is a real category (transactions.category), but it has no
             Fixed/Discretionary concept and no custom subcategories — it's
             deliberately not manageable from this page. */}

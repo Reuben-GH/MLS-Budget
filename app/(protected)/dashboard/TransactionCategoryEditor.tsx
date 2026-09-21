@@ -20,6 +20,7 @@ export function TransactionCategoryEditor({
   const [open, setOpen] = useState(false);
   const [nextCategory, setNextCategory] = useState<TopLevelCategory>(category);
   const [nextSubcategory, setNextSubcategory] = useState<string>(subcategory ?? "");
+  const [applyToAll, setApplyToAll] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -28,6 +29,7 @@ export function TransactionCategoryEditor({
   function handleOpen() {
     setNextCategory(category);
     setNextSubcategory(subcategory ?? "");
+    setApplyToAll(true);
     setError(null);
     setOpen(true);
   }
@@ -37,7 +39,8 @@ export function TransactionCategoryEditor({
       const result = await reassignTransactionCategory(
         transactionId,
         nextCategory,
-        nextSubcategory || null
+        nextSubcategory || null,
+        applyToAll
       );
       if (result?.error) {
         setError(result.error);
@@ -81,6 +84,14 @@ export function TransactionCategoryEditor({
           ))}
         </select>
       )}
+      <label className="apply-to-all-label">
+        <input
+          type="checkbox"
+          checked={applyToAll}
+          onChange={(e) => setApplyToAll(e.target.checked)}
+        />
+        Apply to all transactions from this merchant
+      </label>
       <button type="button" className="btn-save" onClick={handleSave} disabled={isPending}>
         Save
       </button>
