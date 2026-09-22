@@ -37,11 +37,16 @@ export function ImportWizard() {
   const [isPending, startTransition] = useTransition();
 
   function loadSheet(wb: WorkBook, sheet: string) {
-    const { headers: h, rows } = sheetToRows(wb.Sheets[sheet]);
+    const { headers: h, rows, hasNormalizedDates } = sheetToRows(wb.Sheets[sheet]);
     setSheetName(sheet);
     setHeaders(h);
     setRawRows(rows);
-    setMapping(guessColumnMapping(h));
+    // A genuine Excel date cell is normalised straight to YYYY-MM-DD
+    // (see sheetToRows) — YMD is then the correct picker default,
+    // not the usual DMY-first guess, though it's still fully
+    // overridable like every other guessed field.
+    const guess = guessColumnMapping(h);
+    setMapping(hasNormalizedDates ? { ...guess, dateFormat: "YMD" } : guess);
     setStep("map");
   }
 

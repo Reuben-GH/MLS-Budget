@@ -64,7 +64,12 @@ export function guessColumnMapping(headers: string[]): Partial<ColumnMapping> {
 }
 
 export function parseDate(raw: string, format: DateFormat): string {
-  const parts = raw.trim().split(/[/\-.]/).map((p) => p.trim());
+  // Some exports append a time-of-day component after the date (e.g.
+  // "20/09/2026 17:10") — bank statements commonly include this for
+  // exact same-day ordering. Only the date portion is ever needed
+  // here; the date is always the first whitespace-separated token.
+  const datePart = raw.trim().split(/\s+/)[0];
+  const parts = datePart.split(/[/\-.]/).map((p) => p.trim());
   if (parts.length !== 3) throw new Error(`Unrecognised date: "${raw}"`);
 
   let day: string, month: string, year: string;

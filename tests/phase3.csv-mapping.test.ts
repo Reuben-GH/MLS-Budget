@@ -42,6 +42,13 @@ describe("Phase 3 — parseDate()", () => {
   test("throws on an unparseable date", () => {
     expect(() => parseDate("not a date", "DMY")).toThrow();
   });
+  // A real client statement (UBank, exported as .xlsx) had dates with
+  // a trailing time-of-day, e.g. "9/20/26 17:10" — only the date
+  // portion should ever be parsed.
+  test("a trailing time-of-day component is ignored", () => {
+    expect(parseDate("20/09/2026 17:10", "DMY")).toBe("2026-09-20");
+    expect(parseDate("9/20/26 17:10", "MDY")).toBe("2026-09-20");
+  });
 });
 
 describe("Phase 3 — parseAmount()", () => {
