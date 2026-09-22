@@ -78,6 +78,18 @@ describe("Phase 3 — parseAmount()", () => {
   test("accounting-style parentheses mean negative", () => {
     expect(parseAmount("(99.00)")).toBeCloseTo(-99.0, 2);
   });
+  // Most common on PDF statements, but general enough to belong in
+  // the shared parser rather than a PDF-only one.
+  test("a trailing DR suffix means negative (debit)", () => {
+    expect(parseAmount("123.45 DR")).toBeCloseTo(-123.45, 2);
+    expect(parseAmount("123.45DR")).toBeCloseTo(-123.45, 2);
+  });
+  test("a trailing CR suffix means positive (credit)", () => {
+    expect(parseAmount("123.45 CR")).toBeCloseTo(123.45, 2);
+  });
+  test("DR/CR suffix is case-insensitive", () => {
+    expect(parseAmount("123.45 dr")).toBeCloseTo(-123.45, 2);
+  });
 });
 
 describe("Phase 3 — mapRows()", () => {

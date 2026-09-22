@@ -108,14 +108,21 @@ export function parseDate(raw: string, format: DateFormat): string {
 }
 
 // Handles "$1,234.56", "-123.45", "(123.45)" (accounting-style
-// negative), and plain "123.45".
+// negative), plain "123.45", and a trailing "DR"/"CR" suffix some
+// exports use instead of a sign (DR = debit = negative, CR = credit
+// = positive) — most common on PDF statements, but not exclusive to
+// them, so this lives in the shared parser rather than a PDF-only one.
 export function parseAmount(raw: string): number {
   const trimmed = raw.trim();
-  const isParenNegative = trimmed.startsWith("(") && trimmed.endsWith(")");
-  const cleaned = trimmed.replace(/[()$,]/g, "").trim();
+  const drCrMatch = trimmed.match(/\s*(DR|CR)$/i);
+  const withoutSuffix = drCrMatch ? trimmed.slice(0, drCrMatch.index).trim() : trimmed;
+  const isParenNegative = withoutSuffix.startsWith("(") && withoutSuffix.endsWith(")");
+  const cleaned = withoutSuffix.replace(/[()$,]/g, "").trim();
   const value = Number(cleaned);
   if (Number.isNaN(value)) throw new Error(`Unrecognised amount: "${raw}"`);
-  return isParenNegative ? -Math.abs(value) : value;
+  const magnitude = Math.abs(value);
+  if (drCrMatch) return drCrMatch[1].toUpperCase() === "DR" ? -magnitude : magnitude;
+  return isParenNegative ? -magnitude : value;
 }
 
 export function mapRows(rawRows: Record<string, string>[], mapping: ColumnMapping): ImportRow[] {

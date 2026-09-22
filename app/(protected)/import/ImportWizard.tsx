@@ -11,9 +11,15 @@ import {
   type ImportRow,
 } from "../../../lib/statements/csv-mapping";
 import { parseWorkbook, sheetToRows } from "../../../lib/statements/xlsx-mapping";
+import {
+  extractLinesFromPdf,
+  extractTransactionCandidates,
+  toImportRows,
+  type PdfTransactionCandidate,
+} from "../../../lib/statements/pdf-mapping";
 import { importTransactions } from "./actions";
 
-type Step = "pick" | "map" | "done";
+type Step = "pick" | "map" | "pdf" | "done";
 
 const DATE_FORMAT_LABELS: Record<DateFormat, string> = {
   DMY: "DD/MM/YYYY (Australian)",
@@ -34,6 +40,9 @@ export function ImportWizard() {
   const [error, setError] = useState<string | null>(null);
   const [workbook, setWorkbook] = useState<WorkBook | null>(null);
   const [sheetName, setSheetName] = useState("");
+  const [pdfCandidates, setPdfCandidates] = useState<PdfTransactionCandidate[]>([]);
+  const [pdfDateFormat, setPdfDateFormat] = useState<DateFormat>("DMY");
+  const [pdfLoadError, setPdfLoadError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function loadSheet(wb: WorkBook, sheet: string) {
@@ -54,7 +63,21 @@ export function ImportWizard() {
     const file = e.target.files?.[0];
     if (!file) return;
     setFilename(file.name);
+    setPdfLoadError(null);
     const extension = file.name.toLowerCase().split(".").pop() ?? "";
+
+    if (extension === "pdf") {
+      file.arrayBuffer().then(async (buffer) => {
+        try {
+          const lines = await extractLinesFromPdf(buffer);
+          setPdfCandidates(extractTransactionCandidates(lines));
+          setStep("pdf");
+        } catch (err) {
+          setPdfLoadError(err instanceof Error ? err.message : "Couldn't read that PDF file.");
+        }
+      });
+      return;
+    }
 
     if (EXCEL_EXTENSIONS.includes(extension)) {
       file.arrayBuffer().then((buffer) => {
@@ -119,15 +142,31 @@ export function ImportWizard() {
     });
   }
 
+  function handlePdfConfirm() {
+    const { rows } = toImportRows(pdfCandidates, pdfDateFormat);
+    startTransition(async () => {
+      const res = await importTransactions(filename, rows);
+      if ("error" in res) {
+        setError(res.error);
+        return;
+      }
+      setError(null);
+      setResult(res);
+      setStep("done");
+    });
+  }
+
   if (step === "pick") {
     return (
       <div className="card">
         <div className="card-title">1. Choose a file</div>
         <p className="stat-caption" style={{ marginBottom: 12 }}>
           Export a transaction list from your client&apos;s online banking as a CSV or Excel (.xlsx)
-          file, then choose it here.
+          file, then choose it here. A PDF statement works too, but it&apos;s read best-effort — always
+          check the preview carefully before importing.
         </p>
-        <input type="file" accept=".csv,.xlsx,.xls" onChange={handleFile} />
+        <input type="file" accept=".csv,.xlsx,.xls,.pdf" onChange={handleFile} />
+        {pdfLoadError && <div className="form-error mt16">{pdfLoadError}</div>}
       </div>
     );
   }
@@ -305,6 +344,97 @@ export function ImportWizard() {
         <div className="calc-bar mt16">
           <button className="btn-primary" type="button" onClick={handleConfirm} disabled={isPending || !sample}>
             {isPending ? "Importing…" : `Import all ${rawRows.length} rows`}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === "pdf") {
+    if (pdfCandidates.length === 0) {
+      return (
+        <div className="card">
+          <div className="card-title">Couldn&apos;t find any transactions</div>
+          <p className="stat-caption" style={{ marginBottom: 12 }}>
+            {filename} didn&apos;t have any lines that looked like transactions. This usually means
+            it&apos;s a scanned image rather than a text-based statement — PDF import can&apos;t read
+            those. Try exporting a CSV or Excel file from your bank instead.
+          </p>
+          <button className="btn-primary" type="button" onClick={() => setStep("pick")}>
+            Choose a different file
+          </button>
+        </div>
+      );
+    }
+
+    const { rows: pdfRows, skipped: pdfSkipped } = toImportRows(pdfCandidates, pdfDateFormat);
+    const preview = pdfRows.slice(0, 10);
+
+    return (
+      <div className="card">
+        <div className="card-title">2. Check the extracted transactions</div>
+        <p className="stat-caption" style={{ marginBottom: 12 }}>
+          {filename} — found {pdfCandidates.length} possible transaction{pdfCandidates.length === 1 ? "" : "s"}.
+          PDF reading is best-effort, not guaranteed like CSV or Excel — please check these carefully
+          against the real statement before importing.
+        </p>
+
+        <div className="form-group" style={{ marginBottom: 12, maxWidth: 260 }}>
+          <label>Date format</label>
+          <select
+            value={pdfDateFormat}
+            onChange={(e) => setPdfDateFormat(e.target.value as DateFormat)}
+          >
+            {(Object.keys(DATE_FORMAT_LABELS) as DateFormat[]).map((f) => (
+              <option key={f} value={f}>
+                {DATE_FORMAT_LABELS[f]}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {pdfSkipped > 0 && (
+          <div className="form-error mt16">
+            {pdfSkipped} line{pdfSkipped === 1 ? "" : "s"} looked like a transaction but couldn&apos;t
+            be read properly and will be skipped — check the original statement for anything missing
+            after import.
+          </div>
+        )}
+
+        <div className="section-divider mt16">
+          3. Preview (first {preview.length} of {pdfRows.length} rows)
+        </div>
+        <div style={{ overflowX: "auto" }}>
+          <table className="ledger">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Description</th>
+                <th style={{ textAlign: "right" }}>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {preview.map((r, i) => (
+                <tr key={i}>
+                  <td>{r.txn_date}</td>
+                  <td>{r.description}</td>
+                  <td className="amt">{r.amount.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {error && <div className="form-error mt16">{error}</div>}
+
+        <div className="calc-bar mt16">
+          <button
+            className="btn-primary"
+            type="button"
+            onClick={handlePdfConfirm}
+            disabled={isPending || pdfRows.length === 0}
+          >
+            {isPending ? "Importing…" : `Import all ${pdfRows.length} rows`}
           </button>
         </div>
       </div>
