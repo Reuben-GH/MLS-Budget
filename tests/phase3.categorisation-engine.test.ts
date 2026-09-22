@@ -23,6 +23,38 @@ describe("Phase 3 — categoriseTransaction() transfer detection", () => {
   test("credit card payment wording is flagged as Transfer", () => {
     expect(categoriseTransaction("CREDIT CARD PAYMENT VISA", -300).category).toBe("Transfer");
   });
+
+  // Reproduces real client statement wording (ANZ) that the old
+  // exact-phrase rule ("TRANSFER TO"/"TRANSFER FROM") missed
+  // entirely: a reference number sits between "TRANSFER" and
+  // "TO"/"FROM", so the two words are never actually adjacent.
+  test("a transfer reference number between TRANSFER and TO/FROM still matches", () => {
+    expect(
+      categoriseTransaction("ANZ M-BANKING FUNDS TFER TRANSFER 097247  FROM       801990833", 1500).category
+    ).toBe("Transfer");
+    expect(
+      categoriseTransaction("ANZ M-BANKING FUNDS TFER TRANSFER 097247  TO  015140803983506", -1500).category
+    ).toBe("Transfer");
+  });
+
+  // Real client statement wording with no "to"/"from" at all.
+  test("a bare 'Transfer' description (with or without Deposit/Withdrawal) matches", () => {
+    expect(categoriseTransaction("Transfer", -580).category).toBe("Transfer");
+    expect(categoriseTransaction("Transfer Deposit", 2000).category).toBe("Transfer");
+    expect(categoriseTransaction("Transfer Withdrawal", -2000).category).toBe("Transfer");
+  });
+
+  // The real bug that made this worth fixing properly rather than
+  // just adding a missed keyword: "ANZ INTERNET BANKING TRANSFER..."
+  // was being actively miscategorised as Utilities/Internet-Phone,
+  // because the generic "INTERNET" keyword matched "Internet Banking"
+  // before any transfer rule ever got a chance to. Transfer rules run
+  // first specifically to prevent this.
+  test("'ANZ Internet Banking Transfer' is not miscategorised as an internet/phone bill", () => {
+    const result = categoriseTransaction("ANZ INTERNET BANKING TRANSFER MVNC MCLAREN VALE NET", 386.57);
+    expect(result.category).toBe("Transfer");
+    expect(result.category).not.toBe("Utilities");
+  });
 });
 
 describe("Phase 3 — categoriseTransaction() income requires a credit", () => {

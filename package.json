@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "seed:demo": "tsx scripts/seed-demo-user.ts",
-    "clear:demo": "tsx scripts/clear-demo-user.ts"
+    "clear:demo": "tsx scripts/clear-demo-user.ts",
+    "recategorise:demo": "tsx scripts/recategorise-existing.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

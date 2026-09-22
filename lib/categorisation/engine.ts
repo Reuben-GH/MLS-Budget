@@ -50,7 +50,17 @@ function kw(
 const RULES: Rule[] = [
   // ── Transfers — checked first, sign-agnostic ──────────────────────
   kw("transfer-bpay", ["BPAY"], "Transfer", null, 0.85),
-  kw("transfer-generic", ["TRANSFER TO", "TRANSFER FROM", "TFR TO", "TFR FROM", " TFR ", "INTERNAL TRANSFER"], "Transfer", null, 0.75),
+  // Matches the bare word "TRANSFER" (and its bank-abbreviated forms
+  // TFR/TFER), not just an exact "TRANSFER TO"/"TRANSFER FROM" phrase
+  // — real bank descriptions often insert a reference number between
+  // "TRANSFER" and "TO"/"FROM" (e.g. "FUNDS TFER TRANSFER 097247
+  // FROM 801990833"), or have no TO/FROM at all ("Transfer Deposit",
+  // "Transfer Withdrawal"). Checked before every other rule (Transfer
+  // is first in this list) specifically so "ANZ INTERNET BANKING
+  // TRANSFER..." can't be caught by the Utilities "INTERNET" keyword
+  // instead — that collision was a real miscategorisation, not just
+  // a missed one.
+  kw("transfer-generic", ["TRANSFER", "TFER", "TFR TO", "TFR FROM", " TFR "], "Transfer", null, 0.75),
   kw("transfer-cc-payment", ["CREDIT CARD PAYMENT", "PAYMENT TO CR CARD", "PAY CREDIT CARD", "CARD PAYMENT"], "Transfer", null, 0.8),
   kw("transfer-payid-osko", ["PAYID", "OSKO PAYMENT"], "Transfer", null, 0.6),
 
