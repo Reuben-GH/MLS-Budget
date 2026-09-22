@@ -5,28 +5,20 @@ import {
   computeFixedDiscretionaryBreakdown,
   type TransactionForAggregation,
 } from "../../../lib/budget/aggregate";
+import { extractAvailableMonths, resolveTargetMonth, monthLabel, monthStartDate, monthEndExclusive } from "../../../lib/budget/months";
 import { fromSentinel, type ClassificationOverride, type FDClassification } from "../../../lib/categories/classification";
 import type { TopLevelCategory } from "../../../lib/categories/taxonomy";
 import { StatTiles } from "./StatTiles";
 import { GranularityToggle } from "./GranularityToggle";
+import { MonthNav } from "./MonthNav";
 import { DashboardInteractive } from "./DashboardInteractive";
 import { DisclaimerFooter } from "../../../components/DisclaimerFooter";
 
-function monthLabel(monthStart: string): string {
-  const [y, m] = monthStart.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-AU", {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
-
-function monthEndExclusive(monthStart: string): string {
-  const [y, m] = monthStart.split("-").map(Number);
-  return new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10);
-}
-
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string }>;
+}) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -34,15 +26,18 @@ export default async function DashboardPage() {
 
   if (!user) return null; // the (protected) layout already redirects; satisfies TypeScript
 
-  const { data: latestTxn } = await supabase
+  // Every txn_date, not just the latest — this is the one place that
+  // needs to know every month that has data, to build the picker and
+  // to validate a requested ?month= against months that actually
+  // exist (see resolveTargetMonth). A single narrow column, so this
+  // stays cheap even as history grows.
+  const { data: allDates } = await supabase
     .from("transactions")
     .select("txn_date")
     .eq("user_id", user.id)
-    .order("txn_date", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .order("txn_date", { ascending: false });
 
-  if (!latestTxn) {
+  if (!allDates || allDates.length === 0) {
     return (
       <>
         <div className="card">
@@ -53,9 +48,12 @@ export default async function DashboardPage() {
     );
   }
 
-  const [year, month] = latestTxn.txn_date.split("-").map(Number);
-  const monthStart = `${year}-${String(month).padStart(2, "0")}-01`;
-  const monthEnd = monthEndExclusive(monthStart);
+  const availableMonths = extractAvailableMonths(allDates.map((r) => r.txn_date));
+  const { month: requestedMonth } = await searchParams;
+  const currentMonth = resolveTargetMonth(availableMonths, requestedMonth)!; // non-null: availableMonths just confirmed non-empty
+
+  const monthStart = monthStartDate(currentMonth);
+  const monthEnd = monthEndExclusive(currentMonth);
 
   const { data: txnRows } = await supabase
     .from("transactions")
@@ -103,10 +101,12 @@ export default async function DashboardPage() {
   const transferCount = transactions.filter((t) => t.category === "Transfer").length;
   const expenseCount = transactions.length - incomeCount - transferCount;
 
+  const monthOptions = availableMonths.map((m) => ({ value: m, label: monthLabel(m) }));
+
   return (
     <>
       <div className="period-bar">
-        <div className="period-label">{monthLabel(monthStart)}</div>
+        <MonthNav currentMonth={currentMonth} options={monthOptions} />
         <div className="period-controls">
           <GranularityToggle />
         </div>
