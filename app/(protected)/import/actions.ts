@@ -33,15 +33,28 @@ export async function importTransactions(
   const periodStart = incoming.reduce((min, r) => (r.txn_date < min ? r.txn_date : min), incoming[0].txn_date);
   const periodEnd = incoming.reduce((max, r) => (r.txn_date > max ? r.txn_date : max), incoming[0].txn_date);
 
-  const { data: existingRows, error: existingError } = await supabase
-    .from("transactions")
-    .select("txn_date, description, amount")
-    .eq("user_id", user.id)
-    .gte("txn_date", periodStart)
-    .lte("txn_date", periodEnd);
-  if (existingError) return { error: "Couldn't check for duplicates — try again." };
+  // Supabase caps a single select at 1000 rows by default, silently —
+  // once an account has more than 1000 transactions in the incoming
+  // file's date range (easily reached across a year of statements),
+  // an unpaginated query here would silently miss existing rows to
+  // dedup against, and re-import them as duplicates instead of
+  // correctly skipping them.
+  const DEDUP_PAGE_SIZE = 1000;
+  const existingRows: { txn_date: string; description: string; amount: number }[] = [];
+  for (let from = 0; ; from += DEDUP_PAGE_SIZE) {
+    const { data: page, error: existingError } = await supabase
+      .from("transactions")
+      .select("txn_date, description, amount")
+      .eq("user_id", user.id)
+      .gte("txn_date", periodStart)
+      .lte("txn_date", periodEnd)
+      .range(from, from + DEDUP_PAGE_SIZE - 1);
+    if (existingError) return { error: "Couldn't check for duplicates — try again." };
+    existingRows.push(...(page ?? []));
+    if (!page || page.length < DEDUP_PAGE_SIZE) break;
+  }
 
-  const existing: DedupKey[] = (existingRows ?? []).map((r) => ({
+  const existing: DedupKey[] = existingRows.map((r) => ({
     txn_date: r.txn_date,
     description: r.description,
     amount: Number(r.amount),

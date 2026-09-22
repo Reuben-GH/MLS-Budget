@@ -29,15 +29,26 @@ export default async function DashboardPage({
   // Every txn_date, not just the latest — this is the one place that
   // needs to know every month that has data, to build the picker and
   // to validate a requested ?month= against months that actually
-  // exist (see resolveTargetMonth). A single narrow column, so this
-  // stays cheap even as history grows.
-  const { data: allDates } = await supabase
-    .from("transactions")
-    .select("txn_date")
-    .eq("user_id", user.id)
-    .order("txn_date", { ascending: false });
+  // exist (see resolveTargetMonth). Supabase caps a single select at
+  // 1000 rows by default, silently — with 1000+ transactions across
+  // a year of statements, a plain .select() here would quietly drop
+  // the oldest months from the picker rather than error, which is
+  // exactly what happened before this was paginated. A single narrow
+  // column keeps each page cheap even as history grows further.
+  const PAGE_SIZE = 1000;
+  const allDates: { txn_date: string }[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data: page } = await supabase
+      .from("transactions")
+      .select("txn_date")
+      .eq("user_id", user.id)
+      .order("txn_date", { ascending: false })
+      .range(from, from + PAGE_SIZE - 1);
+    allDates.push(...(page ?? []));
+    if (!page || page.length < PAGE_SIZE) break;
+  }
 
-  if (!allDates || allDates.length === 0) {
+  if (allDates.length === 0) {
     return (
       <>
         <div className="card">
