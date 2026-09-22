@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "../../../lib/supabase/server";
-import { topLevelCategorySchema, isValidSubcategory, TAXONOMY, type TopLevelCategory } from "../../../lib/categories/taxonomy";
+import { topLevelCategorySchema, TAXONOMY, type TopLevelCategory } from "../../../lib/categories/taxonomy";
 import { buildReassignUpdate, applyMerchantMemory } from "../../../lib/transactions/reassign";
 import { deriveMerchantKey } from "../../../lib/categories/merchant-key";
 
@@ -34,7 +34,7 @@ export async function reassignTransactionCategory(
         .maybeSingle();
       recognized = !!customMatch;
     }
-    if (!recognized || !isValidSubcategory(parsedCategory.data, subcategory)) {
+    if (!recognized) {
       return { error: "Unrecognised subcategory." };
     }
   }
