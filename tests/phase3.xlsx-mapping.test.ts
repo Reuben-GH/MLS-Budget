@@ -138,4 +138,31 @@ describe("Phase 3 — sheetToRows()", () => {
       { txn_date: "2026-09-21", description: "SALARY", amount: 2000 },
     ]);
   });
+
+  // Reproduces a second real client statement's bug: a mixed date
+  // column, some rows genuine Excel date cells (normalised to ISO
+  // here), others plain text in the column's actual US format
+  // ("9/18/26"). The picker was correctly set to MDY for the text
+  // rows, but the already-ISO rows then failed with "Unrecognised
+  // date: 2026-09-03" — one format setting can't describe both kinds
+  // of cell in the same column. parseDate()'s ISO passthrough (see
+  // csv-mapping.ts) is what fixes this; asserted here at the full
+  // sheet-to-mapped-row level, not just in isolation.
+  test("a mixed date column (native cells + US-format text cells) maps correctly under MDY", () => {
+    const ws = roundTripSheet([
+      ["Date", "Description", "Amount"],
+      [new Date(Date.UTC(2026, 8, 3)), "NATIVE DATE CELL ROW", -50],
+      ["9/18/26", "TEXT US-FORMAT ROW", -75],
+    ]);
+    const { headers, rows, hasNormalizedDates } = sheetToRows(ws);
+    expect(hasNormalizedDates).toBe(true);
+    expect(rows[0].Date).toBe("2026-09-03");
+    expect(rows[1].Date).toBe("9/18/26");
+
+    const mapped = mapRows(rows, { ...guessColumnMapping(headers), dateFormat: "MDY" } as Parameters<typeof mapRows>[1]);
+    expect(mapped).toEqual([
+      { txn_date: "2026-09-03", description: "NATIVE DATE CELL ROW", amount: -50 },
+      { txn_date: "2026-09-18", description: "TEXT US-FORMAT ROW", amount: -75 },
+    ]);
+  });
 });

@@ -69,6 +69,23 @@ export function parseDate(raw: string, format: DateFormat): string {
   // exact same-day ordering. Only the date portion is ever needed
   // here; the date is always the first whitespace-separated token.
   const datePart = raw.trim().split(/\s+/)[0];
+
+  // A genuine Excel date cell (see xlsx-mapping.ts's sheetToRows) is
+  // already normalised to an unambiguous ISO date at read time —
+  // recognise and use it directly here, regardless of which format
+  // is selected for the rest of the column. This matters for a
+  // column with mixed cell types: some rows are real Excel date
+  // cells, others are plain text dates in a different format (e.g.
+  // "9/18/26") — one format picker can't correctly describe both at
+  // once, but an ISO value never needed the picker's help in the
+  // first place, since it isn't ambiguous.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+    if (Number.isNaN(new Date(datePart + "T00:00:00Z").getTime())) {
+      throw new Error(`Unrecognised date: "${raw}"`);
+    }
+    return datePart;
+  }
+
   const parts = datePart.split(/[/\-.]/).map((p) => p.trim());
   if (parts.length !== 3) throw new Error(`Unrecognised date: "${raw}"`);
 

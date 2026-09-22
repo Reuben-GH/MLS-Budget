@@ -49,6 +49,20 @@ describe("Phase 3 — parseDate()", () => {
     expect(parseDate("20/09/2026 17:10", "DMY")).toBe("2026-09-20");
     expect(parseDate("9/20/26 17:10", "MDY")).toBe("2026-09-20");
   });
+  // Another real client statement had a mixed date column: some rows
+  // were genuine Excel date cells (normalised to ISO by
+  // xlsx-mapping.ts's sheetToRows before this ever runs), others were
+  // plain text dates in the column's actual US format. One format
+  // picker can't describe both — an already-ISO value must parse
+  // correctly no matter what format is selected for the rest of the
+  // column, since it was never ambiguous to begin with.
+  test("an already-ISO date is used directly regardless of the selected format", () => {
+    expect(parseDate("2026-09-03", "MDY")).toBe("2026-09-03");
+    expect(parseDate("2026-09-03", "DMY")).toBe("2026-09-03");
+  });
+  test("a genuinely invalid ISO-shaped date still throws", () => {
+    expect(() => parseDate("2026-13-40", "MDY")).toThrow();
+  });
 });
 
 describe("Phase 3 — parseAmount()", () => {
