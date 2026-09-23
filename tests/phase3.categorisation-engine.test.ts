@@ -55,6 +55,56 @@ describe("Phase 3 — categoriseTransaction() transfer detection", () => {
     expect(result.category).toBe("Transfer");
     expect(result.category).not.toBe("Utilities");
   });
+
+  // The same collision as above, but without the word "TRANSFER" at
+  // all — BankSA's own wording for an online-banking move between a
+  // customer's own linked accounts. Reg's real statement had these
+  // inflating "Utilities · Internet/Phone" by over $21,000 in a
+  // single month before this rule existed.
+  test("'Internet Deposit'/'Internet Withdrawal' (BankSA wording) are Transfer, not an internet/phone bill", () => {
+    expect(categoriseTransaction("INTERNET DEPOSIT 06JUN 07:55", 1300).category).toBe("Transfer");
+    expect(categoriseTransaction("INTERNET WITHDRAWAL 18JUN 08:40", -10).category).toBe("Transfer");
+  });
+
+  // A real client statement showed a home sale/purchase in progress —
+  // these one-off capital movements were landing in Other (or, worse,
+  // would have skewed Income/Expenses badly if left unclassified) for
+  // amounts in the hundreds of thousands.
+  test("property settlement/loan-drawdown/deposit wording is Transfer, not income or spending", () => {
+    expect(categoriseTransaction("SETTLEMENT FUNDS 8A FIELD ST", 596648.25).category).toBe("Transfer");
+    expect(categoriseTransaction("SETTLEMENT FUNDS 2385374 SALE", 267521.55).category).toBe("Transfer");
+    expect(categoriseTransaction("LOAN DRAWDOWN", -1029802).category).toBe("Transfer");
+    expect(categoriseTransaction("PROCEEDS OF LOAN DRAWDOWN FROM 7379-22149", 47457.43).category).toBe("Transfer");
+    expect(categoriseTransaction("House Deposit", 50000).category).toBe("Transfer");
+  });
+
+  // "AFSH NOM" is a renovation finance facility for a bathroom
+  // renovation on the new property — the drawdown (credit) is
+  // borrowed money, not income, so it's Transfer like the other
+  // property-related capital movements above. Its own repayments
+  // (debit) are a different story — see the Financial describe block
+  // below, since those ARE a genuine ongoing cost.
+  test("an AFSH NOM drawdown (credit) is Transfer, not income", () => {
+    const result = categoriseTransaction("Direct Credit Afsh Nom - 702234", 22956);
+    expect(result.category).toBe("Transfer");
+  });
+
+  // Tara Lampe is a joint account holder (the client) — money moving
+  // to/from her own name, and the matching "Loan Payment" credit that
+  // precedes it, are internal transfers, not third-party spending.
+  test("payments to/from a named joint account holder are Transfer", () => {
+    expect(categoriseTransaction("Payment to Lampe Tara", -6120.57).category).toBe("Transfer");
+    expect(categoriseTransaction("Payment from Tara Lampe", 1769).category).toBe("Transfer");
+    expect(categoriseTransaction("Loan Payment", 6120.57).category).toBe("Transfer");
+  });
+
+  // The credit-only gate on "Loan Payment" must not swallow an
+  // unrelated debit — an actual outgoing loan repayment worded that
+  // way elsewhere is a real expense, not a transfer.
+  test("a debit worded 'Loan Payment' is not swept into Transfer by the credit-gated rule", () => {
+    const result = categoriseTransaction("Loan Payment", -500);
+    expect(result.category).not.toBe("Transfer");
+  });
 });
 
 describe("Phase 3 — categoriseTransaction() income requires a credit", () => {
@@ -68,6 +118,52 @@ describe("Phase 3 — categoriseTransaction() income requires a credit", () => {
     // e.g. a business account paying wages out — must not be miscategorised as household income.
     const result = categoriseTransaction("SALARY PAYMENT RUN", -6200);
     expect(result.category).not.toBe("Income");
+  });
+
+  // Real BankSA statement wording — reversed from the original
+  // "Interest Credit" phrasing this rule only used to catch, which
+  // silently sent every real interest payment to Other instead.
+  test("'Credit Interest' and 'Bonus Interest' (BankSA wording) are categorised as Income", () => {
+    expect(categoriseTransaction("CREDIT INTEREST", 2.36).category).toBe("Income");
+    expect(categoriseTransaction("BONUS INTEREST", 26.85).category).toBe("Income");
+  });
+
+  // The SA Department for Education's payroll system doesn't say
+  // "SALARY" at all — just a bare "EDU" or "Direct Credit EDU - <ref>".
+  test("'EDU' payroll wording (SA Dept for Education) is categorised as Income/Salary", () => {
+    expect(categoriseTransaction("EDU", 3169.6).category).toBe("Income");
+    expect(categoriseTransaction("Direct Credit Edu - 4213243", 3391.47).subcategory).toBe("Salary");
+  });
+
+  // "EDU" is deliberately word-bounded, not a plain substring match —
+  // this must NOT fire on an unrelated word that happens to contain
+  // "edu" in the middle, e.g. "SCHEDULED".
+  test("a word merely containing 'edu' (not the standalone SA payroll code) is not miscategorised as income", () => {
+    const result = categoriseTransaction("SCHEDULED PAYMENT TO LANDLORD", 1200);
+    expect(result.category).not.toBe("Income");
+  });
+});
+
+describe("Phase 3 — categoriseTransaction() home loan interest (debit)", () => {
+  // Distinct from the Income "Credit Interest" rule above — this is
+  // the mortgage's interest CHARGE, money going the other way, from a
+  // real client statement mid home purchase.
+  test("a debit 'Interest' line is categorised as Housing/Mortgage-Rent, not Income", () => {
+    const result = categoriseTransaction("INTEREST", -2625.4);
+    expect(result.category).toBe("Housing");
+    expect(result.subcategory).toBe("Mortgage/Rent");
+  });
+});
+
+describe("Phase 3 — categoriseTransaction() AFSH NOM renovation facility (debit)", () => {
+  // The repayment side of the same AFSH NOM renovation facility whose
+  // drawdown (credit) is tested as Transfer above — unlike the
+  // one-off drawdown, these recurring repayments are a genuine
+  // ongoing cost and belong in the budget as a real expense.
+  test("an AFSH NOM repayment (debit) is Financial/Loan repayments, not Transfer", () => {
+    const result = categoriseTransaction("Direct Debit Afsh Nom - Afsh Nom", -297.95);
+    expect(result.category).toBe("Financial");
+    expect(result.subcategory).toBe("Loan repayments other than mortgage");
   });
 });
 
